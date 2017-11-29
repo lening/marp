@@ -5,6 +5,7 @@ from multiprocessing import Pool
 
 VERSION = "v0.1-beat"
 POOL_SIZE = 500
+LOG_FILE_PATH = "./scanip.csv"
 
 #获取目标主机扫描结果
 def mping(host):
@@ -77,6 +78,36 @@ def scan_urlfile(urlfile_path="./url.conf"):
 	except IOError:
 		error_exit(scan_urlfile.__name__,2)		
 
+class WriteData(object):
+	def __init__(self, data_list):
+		self.data_list = data_list
+
+#将数据写入到sqlite数据库
+	def to_sqliteDB(self):
+		try:
+			import sqlite3
+		except ImportError:
+			error_exit(to_sqliteDB.__name__,3)
+		conn = sqlite3.connect(DB_PATH)
+		cu = conn.cursor()	
+		for data in self.data_list:
+			sql = "INSERT INTO HOST_LATENCY (RECORD_TIME,HOST,LATENCY) VALUES (\"%s\", \"%s\")" %(data[0], data[1])
+			cu.execute(sql)
+			conn.commit()
+		conn.close()
+
+#将数据写入到log文件
+	def to_logfile(self):			
+		try:
+			with open(LOG_FILE_PATH,'a') as logfile:
+				for data in self.data_list:
+					if 	data[1] == "Down":
+						continue
+					else:
+						msg = data[0] + "," + data[1] + '\n'
+						logfile.write(msg)
+		except IOError:
+			error_exit(to_logfile.__name__,2)
 #错误处理
 def error_exit(error_str,error_code):
 	if error_code == 1:		#IP地址或网段不合法
@@ -89,18 +120,28 @@ def error_exit(error_str,error_code):
 		print("Error: import %s failed, please check it..."%(error_str))
 		exit(3)
 
+def help():
+	print("选项:")
+	print("    -h           显示帮助选项")
+	print("    -v           显示程序版本")
+	print("    --net=       按指定网段进行扫描，如: ./scanip.py --net=192.168.1.0/24")
+	print("    --range=     按指定IP地址范围进行扫描，如: ./scanip.py --net=192.168.1.1-100")
+	print("    --urlfile=   读取指定文件中的URL进行扫描，每行一个URL，如: ./scanip.py --urlfile=url.conf")
+
 def main():
 	opts, args = getopt.getopt(sys.argv[1:],'-hv',["net=","range=","urlfile="])
 	for name, value in opts:
 		if name == "-h":
-			print("help func")
+			help()
 		elif name == "--net":
-			print(scan_net(value))
+			data=WriteData(scan_net(value))
+			data.to_logfile()
 		elif name == "--range":
-			res=scan_range(value)
-			print res
+			data=WriteData(scan_range(value))
+			data.to_logfile()
 		elif name == "--urlfile":
-			print(scan_urlfile(value))
+			data=WriteData(scan_urlfile(value))
+			data.to_logfile()
 		elif name == "-v":
 			print(VERSION)
 	
